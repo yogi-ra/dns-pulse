@@ -9,8 +9,16 @@ function timeAgo(iso: string): string {
   return Math.floor(ms / 3600000) + "h ago";
 }
 
-export function BeaconAlerts(props: { range: () => string }) {
-  const state = createPolling(props.range, (r) => api.beaconing(r), 20000);
+export function BeaconAlerts(props: { range: () => string; client: () => string }) {
+  const filterKey = () => `${props.range()}|${props.client()}`;
+  const state = createPolling(
+    filterKey,
+    (key) => {
+      const [r, c] = key.split("|");
+      return api.beaconing(r, c || undefined);
+    },
+    20000
+  );
 
   return (
     <Show when={!state().loading && state().data && state().data!.length > 0}>

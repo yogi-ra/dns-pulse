@@ -60,9 +60,32 @@ export interface Insights {
   total_queries: number;
 }
 
+export interface ThreatResult {
+  domain: string;
+  risk: "clean" | "low" | "medium" | "high" | "critical";
+  score: number;
+  source: string;
+  details: string;
+  link?: string;
+  categories?: string[];
+  registrar?: string;
+  country?: string;
+}
+
+export interface ThreatStatus {
+  virustotal: boolean;
+  abuseipdb: boolean;
+  community_feeds: boolean;
+}
+
+export interface ClientListItem {
+  client_ip: string;
+  total_queries: number;
+}
+
 const BASE = "/api";
 
-async function get(path: string) {
+async function get<T>(path: string): Promise<T> {
   const r = await fetch(BASE + path);
   if (!r.ok) throw new Error(r.status + " " + r.statusText);
   return r.json();
@@ -70,26 +93,39 @@ async function get(path: string) {
 
 function qs(params: Record<string, any>) {
   const s = new URLSearchParams(
-    Object.fromEntries(Object.entries(params).filter(([, v]) => v != null))
+    Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== ""))
   ).toString();
   return s ? "?" + s : "";
 }
 
 export const api = {
-  overview: (range?: string) => get("/stats/overview" + qs({ range })),
-  recent: (range?: string, n?: number) => get("/queries/recent" + qs({ range, limit: n || 50 })),
-  topDomains: (range?: string, n?: number) => get("/domains/top" + qs({ range, limit: n || 20 })),
-  clients: (range?: string, n?: number) => get("/clients" + qs({ range, limit: n || 20 })),
-  types: (range?: string) => get("/queries/types" + qs({ range })),
-  beaconing: (range?: string) => get("/alerts/beaconing" + qs({ range })),
-  timeline: (range?: string) => get("/queries/timeline" + qs({ range })),
-  insights: (range?: string) => get("/insights" + qs({ range })),
-  threatDomain: (domain: string) => get<ThreatResult>('/threat/domain/' + encodeURIComponent(domain)),
-  threatIP: (ip: string) => get<ThreatResult>('/threat/ip/' + encodeURIComponent(ip)),
+  overview: (range?: string, client?: string) =>
+    get<OverviewStats>("/stats/overview" + qs({ range, client })),
+  recent: (range?: string, client?: string, n?: number) =>
+    get<Query[]>("/queries/recent" + qs({ range, client, limit: n || 50 })),
+  topDomains: (range?: string, client?: string, n?: number) =>
+    get<TopDomain[]>("/domains/top" + qs({ range, client, limit: n || 20 })),
+  clients: (range?: string, n?: number) =>
+    get<ClientRow[]>("/clients" + qs({ range, limit: n || 20 })),
+  types: (range?: string, client?: string) =>
+    get<QueryType[]>("/queries/types" + qs({ range, client })),
+  beaconing: (range?: string, client?: string) =>
+    get<Beacon[]>("/alerts/beaconing" + qs({ range, client })),
+  timeline: (range?: string, client?: string) =>
+    get<TimelinePoint[]>("/queries/timeline" + qs({ range, client })),
+  insights: (range?: string, client?: string) =>
+    get<Insights>("/insights" + qs({ range, client })),
+  clientList: () => get<ClientListItem[]>("/clients/list"),
+  threatDomain: (domain: string) =>
+    get<ThreatResult>("/threat/domain/" + encodeURIComponent(domain)),
+  threatIP: (ip: string) =>
+    get<ThreatResult>("/threat/ip/" + encodeURIComponent(ip)),
   threatTop: (range?: string, limit = 10) =>
-    get<ThreatResult[]>('/threat/top' + qs({ range, limit })),
-  threatStatus: () => get<ThreatStatus>('/threat/status'),
+    get<ThreatResult[]>("/threat/top" + qs({ range, limit })),
+  threatStatus: () => get<ThreatStatus>("/threat/status"),
 };
+
+// ── Polling hook — fixed refetch ────────────────────────────
 
 export interface PollState<T> {
   data: T | undefined;
@@ -99,17 +135,16 @@ export interface PollState<T> {
 
 export function createPolling<T>(
   source: () => string,
-  fetcher: (range: string) => Promise<T>,
+  fetcher: (key: string) => Promise<T>,
   ms = 5000
 ): () => PollState<T> {
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
-  const [data] = createResource(source, async (s) => {
+  const [data, { refetch }] = createResource(source, async (s) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetcher(s);
-      return result;
+      return await fetcher(s);
     } catch (e: any) {
       setError(e?.message || "Request failed");
       return undefined as unknown as T;
@@ -120,8 +155,7 @@ export function createPolling<T>(
 
   onMount(() => {
     const id = setInterval(() => {
-      // don't refetch if still loading
-      if (!loading()) data.refetch();
+      if (!loading()) refetch();
     }, ms);
     onCleanup(() => clearInterval(id));
   });
@@ -131,30 +165,4 @@ export function createPolling<T>(
     loading: loading() && data() === undefined,
     error: error(),
   });
-}
-
-// ── Threat Intel types ──
-
-export interface ThreatResult {
-  domain: string
-  risk: 'clean' | 'low' | 'medium' | 'high' | 'critical'
-  score: number
-  source: string
-  details: string
-  link?: string
-  categories?: string[]
-  last_analysis_stats?: {
-    malicious: number
-    suspicious: number
-    harmless: number
-    undetected: number
-  }
-  registrar?: string
-  country?: string
-}
-
-export interface ThreatStatus {
-  virustotal: boolean
-  abuseipdb: boolean
-  community_feeds: boolean
 }

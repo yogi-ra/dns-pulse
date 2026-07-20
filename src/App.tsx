@@ -6,7 +6,8 @@ import { TopDomains } from "./components/TopDomains";
 import { ClientTable } from "./components/ClientTable";
 import { RecentFeed } from "./components/RecentFeed";
 import { BeaconAlerts } from "./components/BeaconAlerts";
-import { ThreatPanel } from './components/ThreatPanel'
+import { ThreatPanel } from "./components/ThreatPanel";
+import { ClientSelector } from "./components/ClientSelector";
 
 function fmt(n: number | undefined): string {
   if (n == null) return "\u2014";
@@ -37,11 +38,19 @@ function StatCard(props: {
   return (
     <div class="stat-card">
       <div class="stat-label">{props.label}</div>
-      <div class="stat-value" style={props.color ? { color: props.color } : undefined}>
-        {props.value != null ? fmt(typeof props.value === "number" ? props.value : undefined) || props.value : "\u2014"}
+      <div
+        class="stat-value"
+        style={props.color ? { color: props.color } : undefined}
+      >
+        {props.value != null
+          ? fmt(typeof props.value === "number" ? props.value : undefined) ||
+          props.value
+          : "\u2014"}
       </div>
       <Show when={props.sub}>
-        <div class={"stat-sub " + (props.subClass || "neutral")}>{props.sub}</div>
+        <div class={"stat-sub " + (props.subClass || "neutral")}>
+          {props.sub}
+        </div>
       </Show>
     </div>
   );
@@ -49,15 +58,17 @@ function StatCard(props: {
 
 function ErrorBanner(props: { message: string }) {
   return (
-    <div style={{
-      background: "var(--danger-dim)",
-      border: "1px solid rgba(239,68,68,0.2)",
-      "border-radius": "var(--radius-sm)",
-      padding: "8px 14px",
-      "font-size": "0.74rem",
-      color: "var(--danger)",
-      "margin-bottom": "14px",
-    }}>
+    <div
+      style={{
+        background: "var(--danger-dim)",
+        border: "1px solid rgba(239,68,68,0.2)",
+        "border-radius": "var(--radius-sm)",
+        padding: "8px 14px",
+        "font-size": "0.74rem",
+        color: "var(--danger)",
+        "margin-bottom": "14px",
+      }}
+    >
       {"\u26A0"} {props.message}
     </div>
   );
@@ -65,9 +76,28 @@ function ErrorBanner(props: { message: string }) {
 
 export function App() {
   const [range, setRange] = createSignal("all");
+  const [client, setClient] = createSignal("");
 
-  const overview = createPolling(range, (r) => api.overview(r), 5000);
-  const insights = createPolling(range, (r) => api.insights(r), 15000);
+  // Combined key that triggers refetch on either change
+  const filterKey = () => `${range()}|${client()}`;
+
+  const overview = createPolling(
+    filterKey,
+    (key) => {
+      const [r, c] = key.split("|");
+      return api.overview(r, c || undefined);
+    },
+    5000
+  );
+
+  const insights = createPolling(
+    filterKey,
+    (key) => {
+      const [r, c] = key.split("|");
+      return api.insights(r, c || undefined);
+    },
+    15000
+  );
 
   const o = () => overview();
   const i = () => insights();
@@ -83,14 +113,24 @@ export function App() {
           <span class="logo-sub">Network DNS Monitoring</span>
         </div>
         <div class="header-right">
+          <ClientSelector value={client} onChange={setClient} />
+
           <div class="range-selector">
-            <For each={RANGES}>{(r) => (
-              <button
-                class={"range-pill" + (range() === r.toLowerCase() ? " active" : "")}
-                onClick={() => setRange(r.toLowerCase())}
-              >{r}</button>
-            )}</For>
+            <For each={RANGES}>
+              {(r) => (
+                <button
+                  class={
+                    "range-pill" +
+                    (range() === r.toLowerCase() ? " active" : "")
+                  }
+                  onClick={() => setRange(r.toLowerCase())}
+                >
+                  {r}
+                </button>
+              )}
+            </For>
           </div>
+
           <div class="status-badge">
             <span class="status-dot" />
             <Show when={o().data}>
@@ -100,6 +140,49 @@ export function App() {
           <Clock />
         </div>
       </header>
+
+      {/* Active filter indicator */}
+      <Show when={client()}>
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            gap: "8px",
+            padding: "8px 14px",
+            "margin-bottom": "14px",
+            background: "var(--accent-dim)",
+            border: "1px solid rgba(59,130,246,0.15)",
+            "border-radius": "var(--radius-sm)",
+            "font-size": "0.74rem",
+          }}
+        >
+          <span style={{ color: "var(--accent-bright)" }}>
+            Filtering by client:
+          </span>
+          <span
+            style={{
+              color: "var(--text)",
+              "font-weight": "500",
+            }}
+          >
+            {client()}
+          </span>
+          <button
+            onClick={() => setClient("")}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              "font-size": "0.8rem",
+              padding: "0 4px",
+              "margin-left": "4px",
+            }}
+          >
+            {"\u2715"} clear
+          </button>
+        </div>
+      </Show>
 
       <Show when={o().error}>
         <ErrorBanner message={o().error!} />
@@ -129,9 +212,17 @@ export function App() {
         <StatCard
           label="Alerts"
           value={o().loading ? undefined : o().data?.alert_count}
-          sub={o().data ? (o().data!.alert_count > 0 ? "beaconing detected" : "all clear") : undefined}
+          sub={
+            o().data
+              ? o().data!.alert_count > 0
+                ? "beaconing detected"
+                : "all clear"
+              : undefined
+          }
           subClass={o().data && o().data!.alert_count > 0 ? "negative" : "positive"}
-          color={o().data && o().data!.alert_count > 0 ? "var(--danger)" : undefined}
+          color={
+            o().data && o().data!.alert_count > 0 ? "var(--danger)" : undefined
+          }
         />
       </div>
 
@@ -139,8 +230,11 @@ export function App() {
         <div class="panel">
           <div class="panel-header">
             <span class="panel-title">Query Volume</span>
+            <Show when={client()}>
+              <span class="panel-badge info">{client()}</span>
+            </Show>
           </div>
-          <TimelineChart range={range} />
+          <TimelineChart range={range} client={client} />
         </div>
       </div>
 
@@ -149,7 +243,7 @@ export function App() {
           <div class="panel-header">
             <span class="panel-title">Query Types</span>
           </div>
-          <DonutChart range={range} />
+          <DonutChart range={range} client={client} />
         </div>
         <div class="panel">
           <div class="panel-header">
@@ -173,9 +267,10 @@ export function App() {
                   <div
                     class="insight-value"
                     style={{
-                      color: ins().high_entropy_domains.length > 0
-                        ? "var(--warning)"
-                        : "var(--success)",
+                      color:
+                        ins().high_entropy_domains.length > 0
+                          ? "var(--warning)"
+                          : "var(--success)",
                     }}
                   >
                     {ins().high_entropy_domains.length}
@@ -186,7 +281,13 @@ export function App() {
                   <Show
                     when={ins().high_entropy_domains.length > 0}
                     fallback={
-                      <div style={{ color: "var(--success)", "font-size": "0.78rem", "margin-top": "4px" }}>
+                      <div
+                        style={{
+                          color: "var(--success)",
+                          "font-size": "0.78rem",
+                          "margin-top": "4px",
+                        }}
+                      >
                         None detected
                       </div>
                     }
@@ -195,7 +296,9 @@ export function App() {
                       <For each={ins().high_entropy_domains.slice(0, 5)}>
                         {(d) => (
                           <li>
-                            <span style={{ color: "var(--danger)" }}>{d.query_name}</span>
+                            <span style={{ color: "var(--danger)" }}>
+                              {d.query_name}
+                            </span>
                             <span class="entropy-val">{d.entropy}</span>
                           </li>
                         )}
@@ -209,7 +312,7 @@ export function App() {
         </div>
       </div>
 
-      <BeaconAlerts range={range} />
+      <BeaconAlerts range={range} client={client} />
 
       <div class="grid-full">
         <ThreatPanel range={range} />
@@ -220,7 +323,7 @@ export function App() {
           <div class="panel-header">
             <span class="panel-title">Top Domains</span>
           </div>
-          <TopDomains range={range} />
+          <TopDomains range={range} client={client} />
         </div>
         <div class="panel">
           <div class="panel-header">
@@ -230,7 +333,7 @@ export function App() {
         </div>
       </div>
 
-      <RecentFeed range={range} />
+      <RecentFeed range={range} client={client} />
     </div>
   );
 }
