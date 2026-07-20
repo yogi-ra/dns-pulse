@@ -9,6 +9,19 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: { "/api": "http://localhost:" + (env.PORT || "3000") },
     },
-    build: { outDir: "dist", target: "esnext" },
+    build: {
+      outDir: "dist",
+      target: "esnext",
+      minify: "terser",
+      sourcemap: false,
+      cssMinify: true,
+      rollupOptions: {
+        output: {
+          entryFileNames: "assets/[hash].js",
+          chunkFileNames: "assets/[hash].js",
+          assetFileNames: "assets/[hash].[ext]",
+        },
+      },
+    },
   };
 });

@@ -12,7 +12,10 @@ const app = new Elysia()
   .use(cors())
 
 if (isProd && existsSync('dist')) {
-  app.use(staticPlugin({ assets: 'dist', prefix: '/' }))
+  app.use(staticPlugin({
+    assets: 'dist',
+    prefix: '/',
+  }))
 }
 
 // ── Existing routes ──
