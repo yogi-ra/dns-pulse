@@ -1,3 +1,4 @@
+<<<<<<< README.md
 # DNS Pulse
 
 Real-time DNS traffic monitoring dashboard with integrated threat intelligence. Built with **Bun**, **Elysia**, **SolidJS**, and **PostgreSQL**.
