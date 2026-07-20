@@ -1,8 +1,16 @@
 import { Show, For, createMemo } from "solid-js";
 import { createPolling, api } from "../api";
 
-export function TimelineChart(props: { range: () => string }) {
-  const state = createPolling(props.range, (r) => api.timeline(r), 15000);
+export function TimelineChart(props: { range: () => string; client: () => string }) {
+  const filterKey = () => `${props.range()}|${props.client()}`;
+  const state = createPolling(
+    filterKey,
+    (key) => {
+      const [r, c] = key.split("|");
+      return api.timeline(r, c || undefined);
+    },
+    15000
+  );
   const W = 900, H = 200, PAD = { t: 12, r: 16, b: 30, l: 46 };
 
   const chart = createMemo(() => {
@@ -42,10 +50,7 @@ export function TimelineChart(props: { range: () => string }) {
           : <div class="skeleton" style={{ height: "200px" }} />
       }
     >
-      <Show
-        when={chart()}
-        fallback={<div class="empty">No data for this time range</div>}
-      >
+      <Show when={chart()} fallback={<div class="empty">No data for this time range</div>}>
         {(c) => (
           <svg class="timeline-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
             <defs>
