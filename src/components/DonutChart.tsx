@@ -8,8 +8,16 @@ const COLORS: Record<string, string> = {
 };
 function color(t: string) { return COLORS[t] || "#4b5563"; }
 
-export function DonutChart(props: { range: () => string }) {
-  const state = createPolling(props.range, (r) => api.types(r), 10000);
+export function DonutChart(props: { range: () => string; client: () => string }) {
+  const filterKey = () => `${props.range()}|${props.client()}`;
+  const state = createPolling(
+    filterKey,
+    (key) => {
+      const [r, c] = key.split("|");
+      return api.types(r, c || undefined);
+    },
+    10000
+  );
   const R = 62, SW = 20, C = 2 * Math.PI * R;
 
   const segments = createMemo(() => {
@@ -37,10 +45,7 @@ export function DonutChart(props: { range: () => string }) {
           : <div class="skeleton" style={{ height: "160px" }} />
       }
     >
-      <Show
-        when={state().data && state().data!.length > 0}
-        fallback={<div class="empty">No data for this time range</div>}
-      >
+      <Show when={state().data && state().data!.length > 0} fallback={<div class="empty">No data</div>}>
         <div class="donut-wrap">
           <svg class="donut-svg" viewBox="0 0 200 200">
             <For each={segments()}>
