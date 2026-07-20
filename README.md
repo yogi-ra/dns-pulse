@@ -33,7 +33,7 @@ DNS Pulse ingests DNS query logs into PostgreSQL and surfaces them through a liv
 
 ```
 ┌───────────────────┐         ┌──────────────┐         ┌─────────────┐
-│  DNS Data Source  │────────▶│  PostgreSQL  │◀────────│  Elysia API │
+│  DNS Data Source  │───────▶│  PostgreSQL  │◀────────│  Elysia API │
 │  (your resolver)  │  writes │  dns_queries │  reads  │  /api/*     │
 └───────────────────┘         └──────────────┘    ▲    └──────┬──────┘
                                                   │           │
@@ -68,8 +68,6 @@ DNS Pulse ingests DNS query logs into PostgreSQL and surfaces them through a liv
 |             | hagezi, cert.pl  |                                        |
 ```
 
-```
-```
 ---
 
 ## Project Structure
